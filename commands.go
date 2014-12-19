@@ -81,6 +81,25 @@ func (c *DecryptCommand) Run(args []string) int {
 
 	for _, f := range files {
 		fname := directory + f.Name()
+		if !strings.HasSuffix(f.Name(), ".txt") {
+			c.Ui.Output(fmt.Sprintf("%s does not have the right extension", f.Name()))
+			continue
+		}
+		buff, err := exec.Command("xxd", "-r", "-p", fname).CombinedOutput()
+		if err != nil {
+			c.Ui.Error(fmt.Sprintf("xxd failed converting %s: %v", fname, err))
+			return 1
+		}
+		ioutil.WriteFile(fname+".raw", buff, 0666)
+	}
+
+	files, _ = ioutil.ReadDir(directory)
+	for _, f := range files {
+		if !strings.HasSuffix(f.Name(), ".raw") {
+			continue
+		}
+
+		fname := directory + f.Name()
 
 		if f.IsDir() {
 			c.Ui.Output(fmt.Sprintf("Skipping directory %s", fname))
@@ -127,7 +146,9 @@ func (c *DecryptCommand) Run(args []string) int {
 	}
 
 	c.Ui.Info(fmt.Sprintf("\nSuccessfully decoded %d files", ok))
-	c.Ui.Info(fmt.Sprintf("Successfully uploaded: %d key pairs", ok))
+	if *upload {
+		c.Ui.Info(fmt.Sprintf("Successfully uploaded: %d key pairs", ok))
+	}
 
 	return 0
 }

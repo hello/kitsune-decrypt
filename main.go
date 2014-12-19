@@ -26,7 +26,7 @@ func realMain() int {
 	cli := &cli.CLI{
 		Args:     args,
 		Commands: Commands,
-		HelpFunc: cli.BasicHelpFunc("sense"),
+		HelpFunc: cli.BasicHelpFunc("kitsune"),
 	}
 
 	exitCode, err := cli.Run()
