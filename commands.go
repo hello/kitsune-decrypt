@@ -77,12 +77,15 @@ func (c *DecryptCommand) Run(args []string) int {
 	files, _ := ioutil.ReadDir(directory)
 
 	ok := 0
+	failed := 0
 	uploaded := 0
 
 	for _, f := range files {
 		fname := directory + f.Name()
 		if !strings.HasSuffix(f.Name(), ".txt") {
-			c.Ui.Output(fmt.Sprintf("%s does not have the right extension", f.Name()))
+			if *debug {
+				c.Ui.Output(fmt.Sprintf("%s does not have the right extension", f.Name()))
+			}
 			continue
 		}
 		buff, err := exec.Command("xxd", "-r", "-p", fname).CombinedOutput()
@@ -92,6 +95,8 @@ func (c *DecryptCommand) Run(args []string) int {
 		}
 		ioutil.WriteFile(fname+".raw", buff, 0666)
 	}
+
+	uniqs := make(map[string]string, len(files))
 
 	files, _ = ioutil.ReadDir(directory)
 	for _, f := range files {
@@ -117,11 +122,20 @@ func (c *DecryptCommand) Run(args []string) int {
 		}
 
 		infoBlob, err := parse(out)
+		stuff, found := uniqs[fmt.Sprintf("%X", infoBlob.DeviceId)]
+		if found {
+			c.Ui.Error(fmt.Sprintf("Duplicate for: %X in file: %s. Already seen in file: %s", infoBlob.DeviceId, fname, stuff))
+			return 1
+		}
+		uniqs[fmt.Sprintf("%X", infoBlob.DeviceId)] = fname
+
 		if err != nil {
 			c.Ui.Error(fmt.Sprintf("[FAIL] Sha doesn't match for file: %s", f.Name()))
 			c.Ui.Error(fmt.Sprintf("\t-> Device_id: %X", infoBlob.DeviceId))
+			c.Ui.Error(fmt.Sprintf("\t-> Key : %X", infoBlob.Key))
 			c.Ui.Error(fmt.Sprintf("\t-> Computed sha: %X", infoBlob.ComputedSha))
 			c.Ui.Error(fmt.Sprintf("\t-> Provided sha: %X", infoBlob.Sha))
+			failed += 1
 			continue
 		}
 
@@ -146,8 +160,12 @@ func (c *DecryptCommand) Run(args []string) int {
 	}
 
 	c.Ui.Info(fmt.Sprintf("\nSuccessfully decoded %d files", ok))
+	if failed > 0 {
+		c.Ui.Error(fmt.Sprintf("Failed decoding %d files", failed))
+	}
+
 	if *upload {
-		c.Ui.Info(fmt.Sprintf("Successfully uploaded: %d key pairs", ok))
+		c.Ui.Info(fmt.Sprintf("Successfully uploaded: %d key pairs", uploaded))
 	}
 
 	return 0
